@@ -71,6 +71,7 @@ class model:
         
         self.observations = {}
         self.s_fs = {}
+        self.free_free = {}
         self.bands = []
         
         # do some interpolation later for better Hankel transform
