@@ -26,7 +26,7 @@ from jax.scipy.interpolate import RegularGridInterpolator
 
 import time
 import numpyro
-from numpyro.distributions import MultivariateNormal, Normal
+from numpyro.distributions import MultivariateNormal, Normal, HalfNormal
 from numpyro.infer import MCMC, NUTS, init_to_median
 import matplotlib.pyplot as plt
 from numpyro.infer import init_to_value, Predictive
@@ -231,13 +231,18 @@ class model:
 
             for _obs in obs:
 
+                free_free = numpyro.sample(
+                                f"f_uncert_{band}",
+                                HalfNormal( scale= self.free_free[band] )
+                            )
+
                 numpyro.sample(
                                 f"Y_observed_{band}_{_obs.name}",
-                                Normal(loc= flux_uncert * _obs.V_model, scale= _obs.s ),
+                                Normal(loc= flux_uncert * _obs.V_model + free_free, scale= _obs.s ),
                                 obs = _obs.V
                             )
 
-    def set_observations( self, band, q, V, s, s_f, nu, Nch, opacity):
+    def set_observations( self, band, q, V, s, s_f, Fff, nu, Nch, opacity):
         '''
         Set observations for a given band.
         band: name of the band
@@ -266,6 +271,7 @@ class model:
             
         self.observations[band] = obs_tmp
         self.s_fs[band] = s_f
+        self.free_free[band] = Fff
 
 
     def show_prior( self, num_samples = 20, jitter=1e-6, log =True, lw=0.1, alpha=0.5 ):
