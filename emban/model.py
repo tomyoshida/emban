@@ -233,7 +233,7 @@ class model:
             for _obs in obs:
 
                 free_free = numpyro.sample(
-                                f"f_uncert_{band}",
+                                f"f_Fff_{band}_{_obs.name}",
                                 HalfNormal( scale= self.free_free[band] )
                             )
 
