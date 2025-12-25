@@ -72,7 +72,6 @@ class model:
         
         self.observations = {}
         self.s_fs = {}
-        self.free_free = {}
         self.bands = []
         
         # do some interpolation later for better Hankel transform
@@ -166,7 +165,7 @@ class model:
 
         if dust_prop:
             self.dust_params.append( kind )
-            print(f'{kind} is the {len(self.dust_params)}-th input of the dust opacity interpolators.') 
+            print(f'{kind} is input {len(self.dust_params)} of the dust opacity interpolators.') 
 
     def _expansion_model( self, f_latents, obs, dryrun = False):
         '''
@@ -187,7 +186,7 @@ class model:
         V = hankel_transform_0_jax(_I, self.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
 
         if self.userdef_vis_model is not None:
-            V = self.userdef_vis_model( V, obs.nu )
+            V = self.userdef_vis_model( V, obs )
 
         if dryrun:
 
@@ -243,12 +242,12 @@ class model:
             for _obs in obs:
 
                 numpyro.sample(
-                                f"Y_observed_{band}_{_obs.name}",
+                                f"Y_observed_{_obs.name}",
                                 Normal(loc= flux_uncert * _obs.V_model, scale= _obs.s ),
                                 obs = _obs.V
                             )
 
-    def set_observations( self, band, q, V, s, s_f, Fff, nu, Nch, opacity):
+    def set_observations( self, band, q, V, s, s_f, nu, Nch, opacity):
         '''
         Set observations for a given band.
         band: name of the band
@@ -265,7 +264,7 @@ class model:
 
         for nch in range(Nch):
             
-            _obs = observation( f'id_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity[nch] )
+            _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity[nch] )
 
             kr_matrix = _obs.q[:, jnp.newaxis] * self.r_rad[jnp.newaxis, :]
         
@@ -277,7 +276,6 @@ class model:
             
         self.observations[band] = obs_tmp
         self.s_fs[band] = s_f
-        self.free_free[band] = Fff
 
 
     def show_prior( self, num_samples = 20, jitter=1e-6, log =True, lw=0.1, alpha=0.5 ):
