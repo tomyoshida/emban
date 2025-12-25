@@ -166,7 +166,7 @@ class model:
 
         if dust_prop:
             self.dust_params.append( kind )
-            print(f'{kind} is the {len(self.dust_params}-th input of the dust opacity interpolators.') 
+            print(f'{kind} is the {len(self.dust_params)}-th input of the dust opacity interpolators.') 
 
     def _expansion_model( self, f_latents, obs, dryrun = False):
         '''
@@ -174,7 +174,6 @@ class model:
         f_latents: dictionary of latent parameters
         obs: observation object
         dryrun: boolean, if True, return intermediate results for debugging
-        userdef_model: function, user-defined numpyro model to modify the visibility in Jy. Input: (V (Jy), nu (Hz)). For instance, to add free-free emission.
         '''
 
         Sigma_d = 10**( f_latents['Sigma_d'] )
