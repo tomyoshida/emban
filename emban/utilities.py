@@ -99,22 +99,22 @@ def F(tau, omega):
     return  (A + B) / denom
 
 
-def f_I(nu, incl, T, Sigma_d, log10_a_max, f_log10_ka, f_log10_ks):
+def f_I(nu, incl, T, Sigma_d, dust_params, f_log10_ka, f_log10_ks):
     '''
     Calculate the intensity I(nu) using radiative transfer with scattering.
     nu: jnp.ndarray or float, frequency in Hz
     incl: jnp.ndarray or float, inclination angle in radians
     T: jnp.ndarray or float, temperature in Kelvin
     Sigma_d: jnp.ndarray or float, dust surface density in g/cm^2
-    log10_a_max: jnp.ndarray or float, logarithm (base 10) of maximum grain size in microns
+    dust_params: list of jnp.ndarray or float, dust parameters (e.g., maximum grain size). Assuming the order matches the interpolators.
     f_log10_ka: function, interpolator for log10 of absorption opacity
     f_log10_ks: function, interpolator for log10 of scattering opacity
     Returns the computed intensity I(nu).
     ''' 
 
 
-    ka = 10**f_log10_ka( log10_a_max )
-    ks = 10**f_log10_ks( log10_a_max )
+    ka = 10**f_log10_ka( *dust_params )
+    ks = 10**f_log10_ks( *dust_params )
 
     chi = ka + ks
     omega = ks / chi

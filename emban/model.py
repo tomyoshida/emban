@@ -46,13 +46,14 @@ jax.config.update("jax_enable_x64", True)
 
 class model:
 
-    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear'):
+    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear', userdef_vis_model = None):
         '''
         incl: inclination angle in degrees
         r_in: inner radius in arcseconds
         r_out: outer radius in arcseconds
         N_GP: number of Gaussian process points
         spacing: 'linear' or 'log' for the spacing of GP points
+        userdef_vis_model: function, user-defined numpyro model to modify the visibility in Jy. Input: (V (Jy), nu (Hz)). For instance, to add free-free emission.
         '''
 
         self.spacing = 'linear'
@@ -80,6 +81,11 @@ class model:
         self.r_GP_rad = np.deg2rad(self.r_GP/3600)
         #_dr = np.deg2rad(dr/3600)
         self.r_rad = self.r_GP_rad #jnp.arange( jnp.min(self.r_GP_rad), jnp.max(self.r_GP_rad), _dr )
+
+
+        self.dust_params = []
+
+        self.userdef_vis_model = userdef_vis_model
                 
 
         
@@ -127,7 +133,7 @@ class model:
         return f_latents
 
 
-    def set_parameter(self, kind, free = True, 
+    def set_parameter(self, kind, free = True,  dust_prop = False,
                       bounds = (10, 20),
                       g_variance_prior = 2.0, g_lengthscale_prior = 0.3,
                       profile = None):
@@ -143,9 +149,10 @@ class model:
         
         if free:
 
-            self.free_parameters[kind] = { 'f_min' : bounds[0], 'f_max' : bounds[1],
+            self.free_parameters[kind] = { 'f_min' : bounds[0], 'f_max' : bounds[1], 
                                             'g_variance_prior':g_variance_prior,
                                            'g_lengthscale_prior':g_lengthscale_prior}
+            
 
         else:
             if profile is not None:
@@ -157,6 +164,9 @@ class model:
             else:
                 raise ValueError(f'Profile for {kind} is not set.')
 
+        if dust_prop:
+            self.dust_params.append( kind )
+            print(f'{kind} is the {len(self.dust_params}-th input of the dust opacity interpolators.') 
 
     def _expansion_model( self, f_latents, obs, dryrun = False):
         '''
@@ -164,28 +174,29 @@ class model:
         f_latents: dictionary of latent parameters
         obs: observation object
         dryrun: boolean, if True, return intermediate results for debugging
+        userdef_model: function, user-defined numpyro model to modify the visibility in Jy. Input: (V (Jy), nu (Hz)). For instance, to add free-free emission.
         '''
 
         Sigma_d = 10**( f_latents['Sigma_d'] )
         T = 10**( f_latents['T'] )
-        log10_a_max = f_latents['a_max']
+        #log10_a_max = f_latents['a_max']
+        _dust_params = [f_latents[f'{dust_param}'] for dust_param in self.dust_params]
 
-        _I = f_I(obs.nu, self.incl, T, Sigma_d, log10_a_max, obs.f_log10_ka, obs.f_log10_ks)
+        _I = f_I(obs.nu, self.incl, T, Sigma_d, _dust_params, obs.f_log10_ka, obs.f_log10_ks)
 
-        # interpolation
 
-        #_I_itp = jnp.interp( self.r_rad, self.r_GP_rad, _I )
+        V = hankel_transform_0_jax(_I, self.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
 
-            
-        V = hankel_transform_0_jax(_I, self.r_rad, obs.q, obs._bessel_mat)
+        if self.userdef_vis_model is not None:
+            V = self.userdef_vis_model( V, obs.nu )
 
         if dryrun:
 
-            return V/1e-23, _I
+            return V, _I
 
         else:
 
-            obs.V_model = V / 1e-23 # Jy
+            obs.V_model = V
             
 
     def _generate_model( self, f_latents ):
@@ -232,14 +243,9 @@ class model:
 
             for _obs in obs:
 
-                free_free = numpyro.sample(
-                                f"f_Fff_{band}_{_obs.name}",
-                                HalfNormal( scale= self.free_free[band] )
-                            )
-
                 numpyro.sample(
                                 f"Y_observed_{band}_{_obs.name}",
-                                Normal(loc= flux_uncert * _obs.V_model + free_free, scale= _obs.s ),
+                                Normal(loc= flux_uncert * _obs.V_model, scale= _obs.s ),
                                 obs = _obs.V
                             )
 
