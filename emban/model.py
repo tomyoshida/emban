@@ -26,7 +26,7 @@ from jax.scipy.interpolate import RegularGridInterpolator
 
 import time
 import numpyro
-from numpyro.distributions import MultivariateNormal, Normal, HalfNormal
+from numpyro.distributions import MultivariateNormal, Normal, Uniform
 from numpyro.infer import MCMC, NUTS, init_to_median
 import matplotlib.pyplot as plt
 from numpyro.infer import init_to_value, Predictive
@@ -106,24 +106,31 @@ class model:
     
         
         for param_name, priors in self.free_parameters.items():
+
+            if priors['GP'] == True:
             
-            _g_variance_rbf = priors['g_variance_prior']
-            _g_lengthscale_rbf = priors['g_lengthscale_prior']
-           
-            K = rbf_kernel(R, R, _g_variance_rbf, _g_lengthscale_rbf) + jnp.eye(R.shape[0]) * self.jitter
-    
-            L_K = jnp.linalg.cholesky(K)
-                 
-            _g_latent = numpyro.sample(
-                            f'g_{param_name}',
-                            MultivariateNormal(loc=0.0
-                                               ,scale_tril=L_K )
-                        )
-                
-            f_latents[param_name] = sigmoid_transform( _g_latent,
-                                                            min_val=priors['f_min'], 
-                                                            max_val=priors['f_max'] )
-                
+                _g_variance_rbf = priors['g_variance_prior']
+                _g_lengthscale_rbf = priors['g_lengthscale_prior']
+            
+                K = rbf_kernel(R, R, _g_variance_rbf, _g_lengthscale_rbf) + jnp.eye(R.shape[0]) * self.jitter
+        
+                L_K = jnp.linalg.cholesky(K)
+                    
+                _g_latent = numpyro.sample(
+                                f'g_{param_name}',
+                                MultivariateNormal(loc=0.0
+                                                ,scale_tril=L_K )
+                            )
+                    
+                f_latents[param_name] = sigmoid_transform( _g_latent,
+                                                                min_val=priors['f_min'], 
+                                                                max_val=priors['f_max'] )
+                    
+            else:
+                f_latents[param_name] = numpyro.sample(
+                                f'{param_name}',
+                                Uniform( low=priors['f_min'], high=priors['f_max'] )
+                            )
         
         for param_name, profile in self.fixed_parameters.items():
             f_latents[param_name] = profile['profile']
@@ -132,7 +139,7 @@ class model:
         return f_latents
 
 
-    def set_parameter(self, kind, free = True,  dust_prop = False,
+    def set_parameter(self, kind, free = True,  dust_prop = False, GP =True,
                       bounds = (10, 20),
                       g_variance_prior = 2.0, g_lengthscale_prior = 0.3,
                       profile = None):
@@ -145,10 +152,11 @@ class model:
         g_lengthscale_prior: float, prior lengthscale for the Gaussian process
         profile: function or array, fixed profile for the parameter if not free
         '''
+    
         
         if free:
 
-            self.free_parameters[kind] = { 'f_min' : bounds[0], 'f_max' : bounds[1], 
+            self.free_parameters[kind] = { 'f_min' : bounds[0], 'f_max' : bounds[1], 'GP' : GP,
                                             'g_variance_prior':g_variance_prior,
                                            'g_lengthscale_prior':g_lengthscale_prior}
             
@@ -157,9 +165,9 @@ class model:
             if profile is not None:
                 
                 if callable(profile):
-                    self.fixed_parameters[kind] = { 'profile' : profile(self.r_GP) }        
+                    self.fixed_parameters[kind] = { 'profile' : profile(self.r_GP), 'GP' : GP, }        
                 else:
-                    self.fixed_parameters[kind] = { 'profile' : profile }
+                    self.fixed_parameters[kind] = { 'profile' : profile, 'GP' : GP, }
             else:
                 raise ValueError(f'Profile for {kind} is not set.')
 
@@ -186,7 +194,7 @@ class model:
         V = hankel_transform_0_jax(_I, self.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
 
         if self.userdef_vis_model is not None:
-            V = self.userdef_vis_model( V, obs )
+            V = self.userdef_vis_model( V, obs, f_latents )
 
         if dryrun:
 
@@ -428,16 +436,22 @@ class model:
         loss = svi_result.losses[-1]
 
         self.delta_medians = {}
+
+
         for param_name, priors in self.free_parameters.items():
 
-        
-            g_predictions = medians[f'g_{param_name}']
-            
-            f_predictions = sigmoid_transform( g_predictions, 
-                                                min_val=priors['f_min'], 
-                                                max_val=priors['f_max'] )
+            if priors['GP'] == False:
+                f_predictions = medians[f'{param_name}']
+                self.delta_medians[param_name] = f_predictions
 
-            self.delta_medians[param_name] = f_predictions
+            else:
+        
+                g_predictions = medians[f'g_{param_name}']
+                f_predictions = sigmoid_transform( g_predictions, 
+                                                    min_val=priors['f_min'], 
+                                                    max_val=priors['f_max'] )
+
+                self.delta_medians[param_name] = f_predictions
 
         return medians, loss
 
@@ -487,11 +501,18 @@ class model:
 
         for param_name, priors in self.free_parameters.items():
 
-            f_posterior_samples[param_name] = sigmoid_transform(
-                g_posterior_samples[f'g_{param_name}'], 
-                min_val=priors['f_min'], 
-                max_val=priors['f_max']
-            )
+
+            if priors['GP'] == False:
+                f_posterior_samples[param_name] = g_posterior_samples[f'{param_name}']
+               
+
+            else:
+
+                f_posterior_samples[param_name] = sigmoid_transform(
+                    g_posterior_samples[f'g_{param_name}'], 
+                    min_val=priors['f_min'], 
+                    max_val=priors['f_max']
+                )
 
         self.mcmc_results = mcmc
         
