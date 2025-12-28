@@ -255,7 +255,7 @@ class model:
                                 obs = _obs.V
                             )
 
-    def set_observations( self, band, q, V, s, s_f, nu, Nch, opacity):
+    def set_observations( self, band, q, V, s, s_f, nu, Nch, opacity_interpolator_log10ka, opacity_interpolator_log10ks ):
         '''
         Set observations for a given band.
         band: name of the band
@@ -272,7 +272,7 @@ class model:
 
         for nch in range(Nch):
             
-            _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity[nch] )
+            _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity_interpolator_log10ka[nch], opacity_interpolator_log10ks[nch] )
 
             kr_matrix = _obs.q[:, jnp.newaxis] * self.r_rad[jnp.newaxis, :]
         
@@ -522,16 +522,19 @@ class model:
 
 class observation:
 
-    def __init__(self, name, nu, q, V, s, opacity):
+    def __init__(self, name, nu, q, V, s, opacity_interpolator_log10ka, opacity_interpolator_log10ks):
 
         self.name = name
         self.nu = nu
         self.q =  jax.device_put(jnp.asarray(q))
         self.V =  jax.device_put(jnp.asarray(V))
         self.s =  jax.device_put(jnp.asarray(s))
+
+        self.f_log10_ka = opacity_interpolator_log10ka
+        self.f_log10_ks = opacity_interpolator_log10ks
         
 
-
+        '''
         self.f_log10_ka = RegularGridInterpolator( points = (opacity['log10_a'], ), 
                                                   values = opacity['log10_ka'] )
 
@@ -539,7 +542,7 @@ class observation:
         self.f_log10_ks = RegularGridInterpolator( points = (opacity['log10_a'], ), 
                                                   values = opacity['log10_ks'] )
 
-
+        '''
         
 
 
