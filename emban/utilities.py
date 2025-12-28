@@ -113,8 +113,8 @@ def f_I(nu, incl, T, Sigma_d, dust_params, f_log10_ka, f_log10_ks):
     ''' 
 
 
-    ka = 10**f_log10_ka( *dust_params )
-    ks = 10**f_log10_ks( *dust_params )
+    ka = 10**f_log10_ka( dust_params )
+    ks = 10**f_log10_ks( dust_params )
 
     chi = ka + ks
     omega = ks / chi
