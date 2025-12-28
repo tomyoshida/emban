@@ -186,7 +186,7 @@ class model:
         Sigma_d = 10**( f_latents['Sigma_d'] )
         T = 10**( f_latents['T'] )
         #log10_a_max = f_latents['a_max']
-        _dust_params = [f_latents[f'{dust_param}'] for dust_param in self.dust_params]
+        _dust_params = jnp.array([f_latents[f'{dust_param}'] for dust_param in self.dust_params])
 
         _I = f_I(obs.nu, self.incl, T, Sigma_d, _dust_params, obs.f_log10_ka, obs.f_log10_ks)
 
