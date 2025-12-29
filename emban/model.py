@@ -127,7 +127,7 @@ class model:
                                                                 min_val=priors['f_min'], 
                                                                 max_val=priors['f_max'] )
                 
-                self.Nparams_forGP += 1
+                
                     
             else:
                 f_latents[param_name] = numpyro.sample(
@@ -162,6 +162,9 @@ class model:
             self.free_parameters[kind] = { 'f_min' : bounds[0], 'f_max' : bounds[1], 'GP' : GP,
                                             'g_variance_prior':g_variance_prior,
                                            'g_lengthscale_prior':g_lengthscale_prior}
+            
+            if GP:
+                self.Nparams_forGP += 1
             
 
         else:
