@@ -58,6 +58,7 @@ class model:
 
         self.spacing = 'linear'
         self.free_parameters = {}
+        self.Nparams_forGP = 0
         self.fixed_parameters = {}
 
         if spacing == 'log':
@@ -125,6 +126,8 @@ class model:
                 f_latents[param_name] = sigmoid_transform( _g_latent,
                                                                 min_val=priors['f_min'], 
                                                                 max_val=priors['f_max'] )
+                
+                self.Nparams_forGP += 1
                     
             else:
                 f_latents[param_name] = numpyro.sample(
@@ -302,13 +305,12 @@ class model:
         def prior_model():
             f_latents = self._set_latent_params()
 
-
             return f_latents
 
 
-        rng_key = jax.random.PRNGKey(1111)
+        rng_key = jax.random.PRNGKey(1)
 
-        npanel = len(self.free_parameters.keys())
+        npanel = self.Nparams_forGP
 
         f_func_all = {}
         g_func_all = {}
@@ -320,44 +322,45 @@ class model:
             fig, axes = plt.subplots(npanel, 1, figsize=(10, 5*npanel))
 
         for i, (param_name, priors) in enumerate(self.free_parameters.items()):
-            prior_predictive = Predictive(prior_model, num_samples=num_samples)
-
-            
-
-            rng_key, rng_key2 = jax.random.split(rng_key)
 
             if priors['GP'] == True:
+
+                prior_predictive = Predictive(prior_model, num_samples=num_samples)
+
+                
+
+                rng_key, rng_key2 = jax.random.split(rng_key)
+
+                
                 prior_predictions = prior_predictive(rng_key)[f'g_{param_name}']
-            else:
-                prior_predictions = prior_predictive(rng_key)[f'{param_name}']
-
-            for j, g_func in enumerate(prior_predictions):
-
-                f_func = sigmoid_transform(g_func, 
-                                           min_val=priors['f_min'], 
-                                           max_val=priors['f_max'])
                 
-                # vstack f_func
-                if j == 0:
-                    _f_func_all = f_func
-                else:
-                    _f_func_all = jnp.vstack((_f_func_all, f_func))
-                
-                # vstack g_func
-                if j == 0:
-                    _g_func_all = g_func
-                else:
-                    _g_func_all = jnp.vstack((_g_func_all, g_func))
+                for j, g_func in enumerate(prior_predictions):
+
+                    f_func = sigmoid_transform(g_func, 
+                                            min_val=priors['f_min'], 
+                                            max_val=priors['f_max'])
+                    
+                    # vstack f_func
+                    if j == 0:
+                        _f_func_all = f_func
+                    else:
+                        _f_func_all = jnp.vstack((_f_func_all, f_func))
+                    
+                    # vstack g_func
+                    if j == 0:
+                        _g_func_all = g_func
+                    else:
+                        _g_func_all = jnp.vstack((_g_func_all, g_func))
 
 
-                axes[i].set_title(f'Prior for {param_name}')
-                if log:
-                    axes[i].plot( jnp.log10(self.r_GP), f_func, color='blue', lw=lw, alpha=alpha )
-                else:
-                    axes[i].plot( self.r_GP, f_func, color='blue', lw=lw, alpha=alpha )
+                    axes[i].set_title(f'Prior for {param_name}')
+                    if log:
+                        axes[i].plot( jnp.log10(self.r_GP), f_func, color='blue', lw=lw, alpha=alpha )
+                    else:
+                        axes[i].plot( self.r_GP, f_func, color='blue', lw=lw, alpha=alpha )
 
-            f_func_all[param_name] = _f_func_all
-            g_func_all[param_name] = _g_func_all
+                f_func_all[param_name] = _f_func_all
+                g_func_all[param_name] = _g_func_all
 
         return f_func_all, g_func_all
 
