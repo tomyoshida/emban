@@ -298,9 +298,11 @@ class model:
 
         self.jitter = jitter
 
-        # NumPyroのサンプリング用の関数を定義
+        
         def prior_model():
             f_latents = self._set_latent_params()
+
+
             return f_latents
 
 
@@ -323,7 +325,11 @@ class model:
             
 
             rng_key, rng_key2 = jax.random.split(rng_key)
-            prior_predictions = prior_predictive(rng_key)[f'g_{param_name}']
+
+            if priors['GP'] == True:
+                prior_predictions = prior_predictive(rng_key)[f'g_{param_name}']
+            else:
+                prior_predictions = prior_predictive(rng_key)[f'{param_name}']
 
             for j, g_func in enumerate(prior_predictions):
 
