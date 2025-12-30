@@ -27,7 +27,7 @@ from jax.scipy.interpolate import RegularGridInterpolator
 import time
 import numpyro
 from numpyro.distributions import MultivariateNormal, Normal, Uniform
-from numpyro.infer import MCMC, NUTS, init_to_median
+from numpyro.infer import MCMC, NUTS, init_to_median, init_to_uniform
 import matplotlib.pyplot as plt
 from numpyro.infer import init_to_value, Predictive
 from numpyro.infer import SVI, Trace_ELBO, init_to_median
@@ -468,7 +468,7 @@ class model:
         return medians, loss
 
 
-    def run_MCMC(self, rng_key, steps, step_size, num_chains, medians, max_tree_depth=10, adapt_step_size=True):
+    def run_MCMC(self, rng_key, steps, step_size, num_chains, medians = None, max_tree_depth=10, adapt_step_size=True, init_strategy='median' ):
         '''
         Run MCMC sampling to obtain posterior distributions of the latent parameters.
         rng_key: random key for JAX
@@ -485,11 +485,20 @@ class model:
         num_samples = steps
 
         # NUTS sampler
-        kernel = NUTS(self.GP_sample,
-                      step_size=step_size,
-                      adapt_step_size=adapt_step_size,
-                      init_strategy = init_to_value(values = medians ),
-                      max_tree_depth=max_tree_depth)
+
+        if init_strategy == 'median':
+            kernel = NUTS(self.GP_sample,
+                        step_size=step_size,
+                        adapt_step_size=adapt_step_size,
+                        init_strategy = init_to_value(values = medians ),
+                        max_tree_depth=max_tree_depth)
+        elif init_strategy == 'uniform':
+            kernel = NUTS(self.GP_sample,
+                        step_size=step_size,
+                        adapt_step_size=adapt_step_size,
+                        init_strategy = init_to_uniform(),
+                        max_tree_depth=max_tree_depth)
+            
 
         mcmc = MCMC(
             kernel,
