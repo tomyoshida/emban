@@ -46,7 +46,7 @@ jax.config.update("jax_enable_x64", True)
 
 class model:
 
-    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear', userdef_vis_model = None):
+    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear', userdef_vis_model = None, flux_uncert = False):
         '''
         incl: inclination angle in degrees
         r_in: inner radius in arcseconds
@@ -86,6 +86,8 @@ class model:
         self.dust_params = []
 
         self.userdef_vis_model = userdef_vis_model
+
+        self.flux_uncert = flux_uncert
                 
 
         
@@ -247,11 +249,15 @@ class model:
         for band in self.bands:
             
             obs = self.observations[band]
+
+            if self.flux_uncert:
             
-            flux_uncert = numpyro.sample(
+                flux_uncert = numpyro.sample(
                                 f"f_uncert_{band}",
                                 Normal(loc=1.0, scale= self.s_fs[band] )
                             )
+            else:
+                flux_uncert = 1.0
 
             for _obs in obs:
 
