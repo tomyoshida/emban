@@ -572,7 +572,7 @@ class observation:
         self.V =  jax.device_put(jnp.asarray(V))
         self.s =  jax.device_put(jnp.asarray(s))
 
-         )
+        
 
         self.f_log10_ka = opacity_interpolator_log10ka
         self.f_log10_ks = opacity_interpolator_log10ks
