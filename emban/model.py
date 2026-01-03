@@ -78,7 +78,7 @@ class model:
         # do some interpolation later for better Hankel transform
         # this is the grid
 
-        # self.r_GP_rad = np.deg2rad(self.r_GP/3600)
+        self.r_GP_rad = np.deg2rad(self.r_GP/3600)
         #_dr = np.deg2rad(dr/3600)
         # self.r_rad = self.r_GP_rad #jnp.arange( jnp.min(self.r_GP_rad), jnp.max(self.r_GP_rad), _dr )
 
@@ -198,7 +198,7 @@ class model:
 
         _I = f_I(obs.nu, self.incl, T, Sigma_d, _dust_params, obs.f_log10_ka, obs.f_log10_ks)
 
-        _I_itp = jnp.interp( obs.r_rad, self.r_GP, _I )
+        _I_itp = jnp.interp( obs.r_rad, self.r_GP_rad, _I )
         V = hankel_transform_0_jax(_I_itp, obs.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
 
         if self.userdef_vis_model is not None:
