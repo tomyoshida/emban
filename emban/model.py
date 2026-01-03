@@ -78,9 +78,9 @@ class model:
         # do some interpolation later for better Hankel transform
         # this is the grid
 
-        self.r_GP_rad = np.deg2rad(self.r_GP/3600)
+        # self.r_GP_rad = np.deg2rad(self.r_GP/3600)
         #_dr = np.deg2rad(dr/3600)
-        self.r_rad = self.r_GP_rad #jnp.arange( jnp.min(self.r_GP_rad), jnp.max(self.r_GP_rad), _dr )
+        # self.r_rad = self.r_GP_rad #jnp.arange( jnp.min(self.r_GP_rad), jnp.max(self.r_GP_rad), _dr )
 
 
         self.dust_params = []
@@ -198,8 +198,8 @@ class model:
 
         _I = f_I(obs.nu, self.incl, T, Sigma_d, _dust_params, obs.f_log10_ka, obs.f_log10_ks)
 
-
-        V = hankel_transform_0_jax(_I, self.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
+        _I_itp = jnp.interp( obs.r_rad, self.r_GP, _I )
+        V = hankel_transform_0_jax(_I_itp, obs.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
 
         if self.userdef_vis_model is not None:
             V = self.userdef_vis_model( V, obs, f_latents )
@@ -299,7 +299,9 @@ class model:
             
             _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity_interpolator_log10ka[nch], opacity_interpolator_log10ks[nch] )
 
-            kr_matrix = _obs.q[:, jnp.newaxis] * self.r_rad[jnp.newaxis, :]
+            _obs.r_rad = jnp.arange( jnp.min(jnp.deg2rad(self.r_GP/3600)), jnp.max(jnp.deg2rad(self.r_GP/3600)), 1/jnp.max(_obs.q)/5 )
+
+            kr_matrix = _obs.q[:, jnp.newaxis] * _obs.r_rad[jnp.newaxis, :]
         
             _obs._bessel_mat = j0( 2*np.pi * kr_matrix )
             
@@ -569,6 +571,8 @@ class observation:
         self.q =  jax.device_put(jnp.asarray(q))
         self.V =  jax.device_put(jnp.asarray(V))
         self.s =  jax.device_put(jnp.asarray(s))
+
+         )
 
         self.f_log10_ka = opacity_interpolator_log10ka
         self.f_log10_ks = opacity_interpolator_log10ks
