@@ -251,19 +251,32 @@ class model:
             obs = self.observations[band]
 
             if self.flux_uncert:
-            
-                flux_uncert = numpyro.sample(
-                                f"f_uncert_{band}",
-                                Normal(loc=1.0, scale= self.s_fs[band] )
-                            )
+
+                for _obs in obs:
+                            
+                    
+                    Sigma_diag = jnp.diag(_obs.s**2)
+
+                    Sigma_corr = self.s_fs[band]**2 * jnp.outer(_obs.V_model, _obs.V_model)
+
+                    Sigma = Sigma_diag + Sigma_corr
+
+                    numpyro.sample(
+                        f"Y_observed_{_obs.name}",
+                        MultivariateNormal(
+                            loc=_obs.V_model,
+                            covariance_matrix=Sigma
+                        ),
+                        obs=_obs.V
+                    )
+
             else:
-                flux_uncert = 1.0
+                
+                for _obs in obs:
 
-            for _obs in obs:
-
-                numpyro.sample(
+                    numpyro.sample(
                                 f"Y_observed_{_obs.name}",
-                                Normal(loc= flux_uncert * _obs.V_model, scale= _obs.s ),
+                                Normal(loc= _obs.V_model, scale= _obs.s ),
                                 obs = _obs.V
                             )
 
