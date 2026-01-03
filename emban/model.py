@@ -26,7 +26,7 @@ from jax.scipy.interpolate import RegularGridInterpolator
 
 import time
 import numpyro
-from numpyro.distributions import MultivariateNormal, Normal, Uniform, LowRankMultivariateNormal
+from numpyro.distributions import MultivariateNormal, Normal, Uniform,TruncatedNormal
 from numpyro.infer import MCMC, NUTS, init_to_median, init_to_uniform
 import matplotlib.pyplot as plt
 from numpyro.infer import init_to_value, Predictive
@@ -252,19 +252,23 @@ class model:
 
             if self.flux_uncert:
 
-                V_all = jnp.concatenate([_obs.V for _obs in obs])
-                V0_all = jnp.concatenate([_obs.V_model for _obs in obs])
-                s_all = jnp.concatenate([_obs.s for _obs in obs])
+                f_band = numpyro.sample(
+                            f"f_scale_{band}",
+                            TruncatedNormal(
+                                loc=1.0,
+                                scale=self.s_fs[band],
+                                low=1-self.s_fs[band]*3,
+                                high=1+self.s_fs[band]*3
+                            )
+                        )
 
-                numpyro.sample(
-                    f"Y_observed_{band}",
-                    LowRankMultivariateNormal(
-                        loc=V0_all,
-                        cov_diag=s_all**2,
-                        cov_factor=jnp.sqrt(self.s_fs[band]**2) * V0_all[:, None]
-                    ),
-                    obs=V_all
-                )
+                for _obs in obs:
+
+                    numpyro.sample(
+                                f"Y_observed_{_obs.name}",
+                                Normal(loc= f_band * _obs.V_model, scale= _obs.s ),
+                                obs = _obs.V
+                            )
 
             else:
                 
