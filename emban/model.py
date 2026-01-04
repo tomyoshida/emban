@@ -46,7 +46,7 @@ jax.config.update("jax_enable_x64", True)
 
 class model:
 
-    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear', userdef_vis_model = None, flux_uncert = False):
+    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear', userdef_vis_model = None, flux_uncert = False, ndr=10):
         '''
         incl: inclination angle in degrees
         r_in: inner radius in arcseconds
@@ -88,6 +88,8 @@ class model:
         self.userdef_vis_model = userdef_vis_model
 
         self.flux_uncert = flux_uncert
+
+        self.ndr = ndr
                 
 
         
@@ -124,6 +126,8 @@ class model:
                                 MultivariateNormal(loc=0.0
                                                 ,scale_tril=L_K )
                             )
+                
+                
                     
                 f_latents[param_name] = sigmoid_transform( _g_latent,
                                                                 min_val=priors['f_min'], 
@@ -299,7 +303,7 @@ class model:
             
             _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity_interpolator_log10ka[nch], opacity_interpolator_log10ks[nch] )
 
-            _obs.r_rad = jnp.arange( jnp.min(jnp.deg2rad(self.r_GP/3600)), jnp.max(jnp.deg2rad(self.r_GP/3600)), 1/jnp.max(_obs.q)/5 )
+            _obs.r_rad = jnp.arange( jnp.min(jnp.deg2rad(self.r_GP/3600)), jnp.max(jnp.deg2rad(self.r_GP/3600)), 1/jnp.max(_obs.q)/self.ndr )
 
             kr_matrix = _obs.q[:, jnp.newaxis] * _obs.r_rad[jnp.newaxis, :]
         
