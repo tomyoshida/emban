@@ -256,15 +256,19 @@ class model:
 
             if self.flux_uncert:
 
-                f_band = numpyro.sample(
-                            f"f_scale_{band}",
-                            TruncatedNormal(
-                                loc=1.0,
-                                scale=self.s_fs[band],
-                                low=1-self.s_fs[band]*3,
-                                high=1+self.s_fs[band]*3
+                _g_f_band = numpyro.sample(
+                            f"g_f_scale_{band}",
+                            Normal(
+                                loc=0,
+                                scale=1.0
                             )
                         )
+                
+                f_band = sigmoid_transform(
+                    _g_f_band,
+                    min_val= 1.0 - 3*self.s_fs[band], 
+                    max_val= 1.0 + 3*self.s_fs[band]
+                )
 
                 for _obs in obs:
 
