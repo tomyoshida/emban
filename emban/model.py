@@ -440,7 +440,7 @@ class model:
 
         
 
-    def run_MAP(self, rng_key, num_iterations=1000, num_particles = 1, adam_lr=0.01):
+    def run_MAP(self, rng_key, num_iterations=1000, num_particles = 1, adam_lr=0.01, init_strategy='uniform'):
         '''
         Run Stochastic Variational Inference (SVI) to find the Maximum A Posteriori (MAP) estimate of the latent parameters.
         rng_key: random key for JAX
@@ -449,7 +449,13 @@ class model:
         adam_lr: learning rate for the Adam optimizer
         '''
         
-        guide = AutoDelta(self.GP_sample, init_loc_fn=init_to_median)
+        if init_strategy == 'median':
+            _init_strategy = init_to_median
+        elif init_strategy == 'uniform':
+            _init_strategy = init_to_uniform
+
+
+        guide = AutoDelta(self.GP_sample, init_loc_fn=_init_strategy)
 
         optimizer = Adam(adam_lr)
 
