@@ -30,7 +30,7 @@ from numpyro.distributions import MultivariateNormal, Normal, Uniform,TruncatedN
 from numpyro.infer import MCMC, NUTS, init_to_median, init_to_uniform
 import matplotlib.pyplot as plt
 from numpyro.infer import init_to_value, Predictive
-from numpyro.infer import SVI, Trace_ELBO, init_to_median
+from numpyro.infer import SVI, Trace_ELBO, init_to_median, init_to_sample
 from numpyro.optim import Adam
 from numpyro.infer.autoguide import AutoDelta
 
@@ -522,16 +522,17 @@ class model:
         # NUTS sampler
 
         if init_strategy == 'median':
-            kernel = NUTS(self.GP_sample,
-                        step_size=step_size,
-                        adapt_step_size=adapt_step_size,
-                        init_strategy = init_to_value(values = medians ),
-                        max_tree_depth=max_tree_depth)
+            _init_strategy = init_to_median( values=medians )
         elif init_strategy == 'uniform':
-            kernel = NUTS(self.GP_sample,
+            _init_strategy = init_to_uniform()
+        elif init_strategy == 'sample':
+            _init_strategy = init_to_sample()
+
+
+        kernel = NUTS(self.GP_sample,
                         step_size=step_size,
                         adapt_step_size=adapt_step_size,
-                        init_strategy = init_to_uniform(),
+                        init_strategy = _init_strategy,
                         max_tree_depth=max_tree_depth)
             
 
