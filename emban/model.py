@@ -347,7 +347,7 @@ class model:
         self.s_fs[band] = s_f
 
 
-    def show_prior( self, num_samples = 20, jitter=1e-6, log =True, lw=0.1, alpha=0.5 ):
+    def show_prior( self, num_samples = 20, log =True, lw=0.1, alpha=0.5 ):
         '''
         Show prior distributions for the latent parameters.
         num_samples: number of prior samples to generate
@@ -356,8 +356,6 @@ class model:
         lw: line width for the plots
         alpha: transparency for the plots
         '''
-
-        self.jitter = jitter
 
         
         def prior_model():
