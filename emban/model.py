@@ -333,12 +333,11 @@ class model:
         
             # H 行列
             Nvis = len(_obs.q)
-            H = jnp.zeros(( Nvis, self.N_GP))
 
-            for j in range(Nvis):
-                H[j, :] = self.HT_prefactor * J0(2.0 * np.pi * _obs.q[j] * self.r_out_rad * self.j0k / self.j0N_plus )
-                
-            
+            arg = 2.0 * jnp.pi* _obs.q[:, None] * self.r_out_rad * self.j0k[None, :] / self.j0N_plus
+
+            H = self.HT_prefactor * J0(arg)
+ 
             _obs.H = H
             
             obs_tmp.append( _obs )
