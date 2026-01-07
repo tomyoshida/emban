@@ -336,7 +336,7 @@ class model:
             H = jnp.zeros(( Nvis, self.N_GP))
 
             for j in range(Nvis):
-                H[j, :] = self.prefactor * J0(2.0 * np.pi * _obs.q[j] * self.r_out_rad * self.j0k / self.j0N_plus )
+                H[j, :] = self.HT_prefactor * J0(2.0 * np.pi * _obs.q[j] * self.r_out_rad * self.j0k / self.j0N_plus )
                 
             
             _obs.H = H
