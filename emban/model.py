@@ -141,7 +141,7 @@ class model:
                     
                 _g_latent = numpyro.sample(
                                 f'g_{param_name}',
-                                MultivariateNormal(loc=0.0
+                                MultivariateNormal(loc=priors['g_mean_prior']
                                                 ,scale_tril=L_K )
                             )
                 
@@ -168,7 +168,7 @@ class model:
 
     def set_parameter(self, kind, free = True,  dust_prop = False, GP =True,
                       bounds = (10, 20),
-                      g_variance_prior = 2.0, g_lengthscale_prior = 0.3,
+                      g_variance_prior = 2.0, g_lengthscale_prior = 0.3, g_mean_prior = 0.0,
                       profile = None):
         '''
         Set a parameter as free or fixed.
@@ -185,7 +185,7 @@ class model:
 
             self.free_parameters[kind] = { 'f_min' : bounds[0], 'f_max' : bounds[1], 'GP' : GP,
                                             'g_variance_prior':g_variance_prior,
-                                           'g_lengthscale_prior':g_lengthscale_prior}
+                                           'g_lengthscale_prior':g_lengthscale_prior, 'g_mean_prior':g_mean_prior }
             
             if GP:
                 self.Nparams_forGP += 1
