@@ -131,9 +131,9 @@ class model:
                     _g_variance_rbf = [ _g_variance_rbf]
                     _g_lengthscale_rbf = [ _g_lengthscale_rbf]
 
-                K = jnp.ones( (R.shape[0], R.shape[0]) )
+                K = jnp.zeros( (R.shape[0], R.shape[0]) )
                 for gv, gl in zip(_g_variance_rbf, _g_lengthscale_rbf):
-                    K *= rbf_kernel(R, R, gv, gl)
+                    K += rbf_kernel(R, R, gv, gl)
 
                 K += jnp.eye(R.shape[0]) * self.jitter
         
