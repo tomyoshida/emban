@@ -116,8 +116,19 @@ class model:
             
                 _g_variance_rbf = priors['g_variance_prior']
                 _g_lengthscale_rbf = priors['g_lengthscale_prior']
-            
-                K = rbf_kernel(R, R, _g_variance_rbf, _g_lengthscale_rbf) + jnp.eye(R.shape[0]) * self.jitter
+
+                if isinstance(_g_variance_rbf, list):
+                    _g_variance_rbf = _g_variance_rbf
+                    _g_lengthscale_rbf = _g_lengthscale_rbf
+                else:
+                    _g_variance_rbf = [ _g_variance_rbf]
+                    _g_lengthscale_rbf = [ _g_lengthscale_rbf]
+
+                K = jnp.zeros( (R.shape[0], R.shape[0]) )
+                for gv, gl in zip(_g_variance_rbf, _g_lengthscale_rbf):
+                    K += rbf_kernel(R, R, gv, gl)
+
+                K += jnp.eye(R.shape[0]) * self.jitter
         
                 L_K = jnp.linalg.cholesky(K)
                     
