@@ -549,16 +549,19 @@ class model:
 
         if init_strategy == 'value':
             _init_strategy = init_to_value( values=medians )
+            init_params = medians
         elif init_strategy == 'uniform':
             _init_strategy = init_to_uniform()
+            init_params = None
         elif init_strategy == 'sample':
             _init_strategy = init_to_sample()
+            init_params = None
 
 
         kernel = NUTS(self.GP_sample,
                         step_size=step_size,
                         adapt_step_size=adapt_step_size,
-                        init_strategy = _init_strategy,
+                        init_strategy = init_to_sample(),
                         max_tree_depth=max_tree_depth)
             
 
@@ -572,6 +575,7 @@ class model:
         )
 
         mcmc.run(rng_key, 
+               init_params = init_params,
                extra_fields=( 'diverging', 'accept_prob', 'energy') 
                 )
         
