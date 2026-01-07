@@ -50,7 +50,7 @@ jax.config.update("jax_enable_x64", True)
 
 class model:
 
-    def __init__(self, incl, r_out, N_GP, userdef_vis_model = None, flux_uncert = False, ndr=10):
+    def __init__(self, incl, r_out, N_GP, userdef_vis_model = None, flux_uncert = False):
         '''
         incl: inclination angle in degrees
         r_in: inner radius in arcseconds
@@ -68,7 +68,8 @@ class model:
         self.r_out = r_out
         self.r_out_rad = jnp.deg2rad( self.r_out/3600 )
 
-        self.j0_zeros = jn_zeros(0, N_GP + 1)
+        self.N_GP = N_GP
+        self.j0_zeros = jn_zeros(0, self.N_GP + 1)
         self.j0N_plus = self.j0_zeros[-1]
         self.j0k = self.j0_zeros[:-1]
         
