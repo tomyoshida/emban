@@ -38,6 +38,10 @@ from numpyro.infer.autoguide import AutoDelta
 from .constants import *
 from .utilities import *
 
+from scipy.special import j0 as J0
+from scipy.special import j1 as J1
+from scipy.special import jn_zeros
+
 
 jax.config.update("jax_enable_x64", True) 
 
@@ -46,7 +50,7 @@ jax.config.update("jax_enable_x64", True)
 
 class model:
 
-    def __init__(self, incl, r_in, r_out, N_GP, spacing = 'linear', userdef_vis_model = None, flux_uncert = False, ndr=10):
+    def __init__(self, incl, r_out, N_GP, userdef_vis_model = None, flux_uncert = False, ndr=10):
         '''
         incl: inclination angle in degrees
         r_in: inner radius in arcseconds
@@ -61,11 +65,18 @@ class model:
         self.Nparams_forGP = 0
         self.fixed_parameters = {}
 
-        if spacing == 'log':
-            self.r_GP = jnp.logspace( jnp.log10(r_in), jnp.log10(r_out), N_GP )
-        elif spacing == 'linear':
-            self.r_GP = jnp.linspace( r_in, r_out, N_GP )
+        self.r_out = r_out
+        self.r_out_rad = jnp.deg2rad( self.r_out/3600 )
 
+        self.j0_zeros = jn_zeros(0, N_GP + 1)
+        self.j0N_plus = j0_zeros[-1]
+        self.j0k = j0_zeros[:-1]
+        
+        self.r_GP = self.r_out * self.j0k / self.j0N_plus
+        self.r_GP_rad = np.deg2rad(self.r_GP/3600)
+
+        self.HT_prefactor = 4.0 * np.pi * self.r_out_rad ** 2/ (self.j0N_plus ** 2 * J1(self.j0k) ** 2)
+   
         self.jitter = 1e-6
 
         self.incl = np.deg2rad(incl)
@@ -78,7 +89,7 @@ class model:
         # do some interpolation later for better Hankel transform
         # this is the grid
 
-        self.r_GP_rad = np.deg2rad(self.r_GP/3600)
+        
         #_dr = np.deg2rad(dr/3600)
         # self.r_rad = self.r_GP_rad #jnp.arange( jnp.min(self.r_GP_rad), jnp.max(self.r_GP_rad), _dr )
 
@@ -89,7 +100,6 @@ class model:
 
         self.flux_uncert = flux_uncert
 
-        self.ndr = ndr
                 
 
         
@@ -100,12 +110,8 @@ class model:
         '''
 
     
-        if self.spacing == 'log':
-            R = jnp.log10(self.r_GP)[:, None]
-        elif self.spacing == 'linear':
-            R = self.r_GP[:, None]
-        elif self.spacing == 'log-linear':
-            R = jnp.log10(self.r_GP)[:, None]
+        R = self.r_GP[:, None]
+        
     
         f_latents = {}
     
@@ -213,8 +219,10 @@ class model:
 
         _I = f_I(obs.nu, self.incl, T, Sigma_d, _dust_params, obs.f_log10_ka, obs.f_log10_ks)
 
-        _I_itp = jnp.interp( obs.r_rad, self.r_GP_rad, _I )
-        V = hankel_transform_0_jax(_I_itp, obs.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
+        #_I_itp = jnp.interp( obs.r_rad, self.r_GP_rad, _I )
+        #V = hankel_transform_0_jax(_I_itp, obs.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
+
+        V = jnp.dot(obs.H, _I) / 1e-23 # Jy
 
         if self.userdef_vis_model is not None:
             V = self.userdef_vis_model( V, obs, f_latents )
@@ -318,11 +326,19 @@ class model:
             
             _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity_interpolator_log10ka[nch], opacity_interpolator_log10ks[nch] )
 
-            _obs.r_rad = jnp.arange( jnp.min(jnp.deg2rad(self.r_GP/3600)), jnp.max(jnp.deg2rad(self.r_GP/3600)), 1/jnp.max(_obs.q)/self.ndr )
+            #_obs.r_rad = jnp.arange( jnp.min(jnp.deg2rad(self.r_GP/3600)), jnp.max(jnp.deg2rad(self.r_GP/3600)), 1/jnp.max(_obs.q)/self.ndr )
 
-            kr_matrix = _obs.q[:, jnp.newaxis] * _obs.r_rad[jnp.newaxis, :]
+            #kr_matrix = _obs.q[:, jnp.newaxis] * _obs.r_rad[jnp.newaxis, :]
         
-            _obs._bessel_mat = j0( 2*np.pi * kr_matrix )
+            # H 行列
+            Nvis = len(_obs.q)
+            H = jnp.zeros(( Nvis, self.N_GP))
+
+            for j in range(Nvis):
+                H[j, :] = self.prefactor * J0(2.0 * np.pi * _obs.q[j] * self.r_out_rad * self.j0k / self.j0N_plus )
+                
+            
+            _obs.H = H
             
             obs_tmp.append( _obs )
             
