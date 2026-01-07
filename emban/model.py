@@ -69,8 +69,8 @@ class model:
         self.r_out_rad = jnp.deg2rad( self.r_out/3600 )
 
         self.j0_zeros = jn_zeros(0, N_GP + 1)
-        self.j0N_plus = j0_zeros[-1]
-        self.j0k = j0_zeros[:-1]
+        self.j0N_plus = self.j0_zeros[-1]
+        self.j0k = self.j0_zeros[:-1]
         
         self.r_GP = self.r_out * self.j0k / self.j0N_plus
         self.r_GP_rad = np.deg2rad(self.r_GP/3600)
