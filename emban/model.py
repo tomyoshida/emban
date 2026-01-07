@@ -30,7 +30,7 @@ from numpyro.distributions import MultivariateNormal, Normal, Uniform,TruncatedN
 from numpyro.infer import MCMC, NUTS, init_to_median, init_to_uniform
 import matplotlib.pyplot as plt
 from numpyro.infer import init_to_value, Predictive
-from numpyro.infer import SVI, Trace_ELBO, init_to_median, init_to_sample
+from numpyro.infer import SVI, Trace_ELBO, init_to_value, init_to_sample
 from numpyro.optim import Adam
 from numpyro.infer.autoguide import AutoDelta
 
@@ -223,6 +223,7 @@ class model:
         #_I_itp = jnp.interp( obs.r_rad, self.r_GP_rad, _I )
         #V = hankel_transform_0_jax(_I_itp, obs.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
 
+        # Hankel transform
         V = jnp.dot(obs.H, _I) / 1e-23 # Jy
 
         if self.userdef_vis_model is not None:
@@ -331,8 +332,6 @@ class model:
 
             #kr_matrix = _obs.q[:, jnp.newaxis] * _obs.r_rad[jnp.newaxis, :]
         
-            # H 行列
-            Nvis = len(_obs.q)
 
             arg = 2.0 * jnp.pi* _obs.q[:, None] * self.r_out_rad * self.j0k[None, :] / self.j0N_plus
 
@@ -548,8 +547,8 @@ class model:
 
         # NUTS sampler
 
-        if init_strategy == 'median':
-            _init_strategy = init_to_median( values=medians )
+        if init_strategy == 'value':
+            _init_strategy = init_to_value( values=medians )
         elif init_strategy == 'uniform':
             _init_strategy = init_to_uniform()
         elif init_strategy == 'sample':
