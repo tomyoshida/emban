@@ -123,16 +123,27 @@ def f_I(nu, incl, T, Sigma_d, k_abs_tot, k_sca_eff_tot):
     return B(nu, T) * (  1 - jnp.exp( -tau/(1-omega) ) + omega*F(tau, omega)  )
 
 
+def size_weight( log10_a, log10_a_max, log10_a_min, q ):
+
+    mask = (log10_a >= log10_a_min) & (log10_a <= log10_a_max)
+
+    log10_w = (4.0 - q) * log10_a
+    w = jnp.where(mask, 10**log10_w, 0.0)
+
+    norm = jnp.sum(w)
+
+    return w, norm
+
 def size_average_opacity( log10_a, k_abs, k_sca_eff, log10_a_max, log10_a_min, q, gamma):
 
     a = 10**log10_a
     a_max = 10**log10_a_max
     a_min = 10**log10_a_min
 
-    n = a**(4.0-q) * jnp.exp(-(a / a_max)**gamma)  * jnp.exp(-(a_min/a)**gamma)
+    n = a**(4.0-q) * jnp.exp(-(a / a_max)**gamma)  * jnp.exp(-(a / a_min)**gamma)
 
     sum_n = jnp.sum(n)
-    
+    # integrals over log a
     k_abs_tot = jnp.dot(n, k_abs) /sum_n
     k_sca_eff_tot = jnp.dot(n, k_sca_eff) /sum_n
 

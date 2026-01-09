@@ -11,7 +11,6 @@ G = cst.G.cgs.value
 M_sun = cst.M_sun.cgs.value
 m_p = cst.m_p.cgs.value
 
-
 import jax
 import jax.numpy as jnp
 
@@ -23,6 +22,8 @@ from scipy.special import j0
 
 
 from jax.scipy.interpolate import RegularGridInterpolator
+from scipy.interpolate import interp1d as scipy_interp1d
+
 
 import time
 import numpyro
@@ -215,10 +216,41 @@ class model:
 
         Sigma_d = 10**( f_latents['Sigma_d'] )
         T = 10**( f_latents['T'] )
-        #log10_a_max = f_latents['a_max']
-        _dust_params =  jnp.stack([f_latents[f'{dust_param}'] for dust_param in self.dust_params], axis=-1)
+        
 
-        _I = f_I(obs.nu, self.incl, T, Sigma_d, _dust_params, obs.f_log10_ka, obs.f_log10_ks)
+        # experimental - corrections for opacities
+
+        A = obs.log10_a_itp[:, None]
+
+        K = rbf_kernel(A, A, self.opacity_vs, self.opacity_ls)
+
+        K += jnp.eye(A.shape[0]) * self.jitter
+        
+        L_K = jnp.linalg.cholesky(K)
+                    
+        log_ka_correction = numpyro.sample(
+                                f'ka_correction_{obs.name}',
+                                MultivariateNormal(loc=0.0
+                                                ,scale_tril=L_K )
+                            )
+        log_ks_correction = numpyro.sample(
+                                f'ks_correction_{obs.name}',
+                                MultivariateNormal(loc=0.0
+                                                ,scale_tril=L_K )
+                            )
+
+
+
+
+        k_abs_tot, k_sca_eff_tot = obs.size_average_opacity_vmap( obs.log10_a_itp,
+                                                                  obs.k_abs_itp * 10**log_ka_correction,
+                                                                  obs.k_sca_eff_itp * 10**log_ks_correction, 
+                                                                  f_latents['a_max'],
+                                                                  -5.0, 
+                                                                  f_latents['q'], 
+                                                                  self.dustsize_gamma )
+        
+        _I = f_I(obs.nu, self.incl, T, Sigma_d, k_abs_tot, k_sca_eff_tot )
 
         #_I_itp = jnp.interp( obs.r_rad, self.r_GP_rad, _I )
         #V = hankel_transform_0_jax(_I_itp, obs.r_rad, obs.q, obs._bessel_mat) / 1e-23 # Jy
@@ -281,15 +313,11 @@ class model:
                             f"g_f_scale_{band}",
                             Normal(
                                 loc=0,
-                                scale=1.0
+                                scale = 1.0
                             )
                         )
                 
-                f_band = sigmoid_transform(
-                    _g_f_band,
-                    min_val= 1.0 - 3*self.s_fs[band], 
-                    max_val= 1.0 + 3*self.s_fs[band]
-                )
+                f_band = 1.0 + _g_f_band*self.s_fs[band]
 
                 for _obs in obs:
 
@@ -309,7 +337,7 @@ class model:
                                 obs = _obs.V
                             )
 
-    def set_observations( self, band, q, V, s, s_f, nu, Nch, opacity_interpolator_log10ka, opacity_interpolator_log10ks ):
+    def set_observations( self, band, q, V, s, s_f, nu, Nch, sigma_ka, sigma_ks ):
         '''
         Set observations for a given band.
         band: name of the band
@@ -326,7 +354,7 @@ class model:
 
         for nch in range(Nch):
             
-            _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], opacity_interpolator_log10ka[nch], opacity_interpolator_log10ks[nch] )
+            _obs = observation( f'{band}_ch_{nch}', nu[nch], q[nch], V[nch], s[nch], sigma_ka, sigma_ks )
 
             #_obs.r_rad = jnp.arange( jnp.min(jnp.deg2rad(self.r_GP/3600)), jnp.max(jnp.deg2rad(self.r_GP/3600)), 1/jnp.max(_obs.q)/self.ndr )
 
@@ -345,6 +373,65 @@ class model:
             
         self.observations[band] = obs_tmp
         self.s_fs[band] = s_f
+
+
+    def set_opacity( self, opac_dict, Na = 40, dustsize_gamma = 5.0, opacity_vs = 0.2, opacity_ls = 2.0 ):
+        
+
+        self.opacity_vs, self.opacity_ls = opacity_vs, opacity_ls
+
+        a      = opac_dict['a']
+        lam    = opac_dict['lam']
+        k_abs  = opac_dict['k_abs']
+        k_sca  = opac_dict['k_sca']
+        gsca   = opac_dict['g']
+        k_sca_eff = (1 - gsca) * k_sca
+
+        a_dense = jnp.array(jnp.logspace( np.log10(jnp.min(a)), np.log10(jnp.max(a)), 2000 ))
+
+        log10_a_dense = jnp.log10(a_dense)
+
+        a_itp = jnp.array(jnp.logspace( np.log10(jnp.min(a)), np.log10(jnp.max(a)), Na ))
+
+        log10_a_itp = jnp.log10(a_itp)
+
+        self.dustsize_gamma = dustsize_gamma
+
+        log10_a_smooth = (log10_a_itp[1] - log10_a_itp[0])/4
+
+        
+
+        for band in self.bands:
+            
+            obs = self.observations[band]
+            
+            for _obs in obs:
+
+                lam0 = c/_obs.nu
+
+                
+                log10_k_abs_itp_lam = scipy_interp1d( np.log10(lam), np.log10(k_abs), axis=1, kind="cubic")( np.log10(lam0) )
+                log10_k_sca_eff_itp_lam = scipy_interp1d( np.log10(lam), np.log10(k_sca_eff), axis=1, kind="cubic")( np.log10(lam0) )
+
+                log10_k_abs_itp = jnp.array( scipy_interp1d( np.log10(a), log10_k_abs_itp_lam , kind='cubic')(log10_a_dense))
+                log10_k_sca_eff_itp = jnp.array( scipy_interp1d( np.log10(a), log10_k_sca_eff_itp_lam, kind='cubic')(log10_a_dense))
+                
+                # smoothing to avoid Mie interference wiggles
+                from scipy.ndimage import gaussian_filter1d
+                sigma_a = log10_a_smooth/ ( log10_a_dense[1] - log10_a_dense[0])
+                
+
+                log10_k_abs_itp_smoothed = jnp.array( gaussian_filter1d( np.array(log10_k_abs_itp), sigma=sigma_a ) )
+                log10_k_sca_eff_itp_smoothed = jnp.array( gaussian_filter1d( np.array(log10_k_sca_eff_itp), sigma=sigma_a ) )
+
+                _obs.k_abs_itp = 10**jnp.interp( log10_a_itp, log10_a_dense, log10_k_abs_itp_smoothed )
+                _obs.k_sca_eff_itp = 10**jnp.interp( log10_a_itp, log10_a_dense, log10_k_sca_eff_itp_smoothed )
+                _obs.log10_a_itp = log10_a_itp
+
+                
+                _obs.size_average_opacity_vmap = jax.vmap( size_average_opacity, in_axes=(None, None, None, 0, None, 0, None) )
+
+
 
 
     def show_prior( self, num_samples = 20, log =True, lw=0.1, alpha=0.5 ):
@@ -549,17 +636,20 @@ class model:
             _init_strategy = init_to_value( values=medians )
             init_params = medians
         elif init_strategy == 'uniform':
-            _init_strategy = init_to_uniform()
+            _init_strategy = init_to_uniform(radius=1.0)
             init_params = None
         elif init_strategy == 'sample':
             _init_strategy = init_to_sample()
+            init_params = None
+        elif init_strategy == 'median':
+            _init_strategy = init_to_median()
             init_params = None
 
 
         kernel = NUTS(self.GP_sample,
                         step_size=step_size,
                         adapt_step_size=adapt_step_size,
-                        init_strategy = init_to_sample(),
+                        init_strategy = _init_strategy,
                         max_tree_depth=max_tree_depth)
             
 
@@ -601,13 +691,13 @@ class model:
 
         self.mcmc_results = mcmc
         
-        return f_posterior_samples
+        return f_posterior_samples, g_posterior_samples 
 
 
 
 class observation:
 
-    def __init__(self, name, nu, q, V, s, opacity_interpolator_log10ka, opacity_interpolator_log10ks):
+    def __init__(self, name, nu, q, V, s, sigma_ka, sigma_ks ):
 
         self.name = name
         self.nu = nu
@@ -615,10 +705,11 @@ class observation:
         self.V =  jax.device_put(jnp.asarray(V))
         self.s =  jax.device_put(jnp.asarray(s))
 
-        
+        self.sigma_ka = sigma_ka
+        self.sigma_ks = sigma_ks
 
-        self.f_log10_ka = opacity_interpolator_log10ka
-        self.f_log10_ks = opacity_interpolator_log10ks
+
+
         
 
         '''
